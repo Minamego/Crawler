@@ -9,6 +9,7 @@ import com.mongodb.client.MongoIterable;
 
 import org.bson.Document;
 
+import javax.print.Doc;
 import java.io.FileNotFoundException;
 import java.io.PrintWriter;
 import java.io.UnsupportedEncodingException;
@@ -190,8 +191,8 @@ public class dbConnector {
         // Getting the iterator
         Iterator it = iterDoc.iterator();
         int cnt=0;
-        while (it.hasNext()) {
-            writer.println(it.next());
+        for (Document doc : iterDoc) {
+            if(doc.getInteger("to_index") == 0)
             ++cnt;
         }
         writer.close();
