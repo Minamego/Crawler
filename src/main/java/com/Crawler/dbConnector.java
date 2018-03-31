@@ -7,14 +7,14 @@ import com.mongodb.client.MongoCollection;
 import com.mongodb.client.MongoDatabase;
 import com.mongodb.client.MongoIterable;
 
-import com.mongodb.client.model.UpdateOneModel;
-import com.mongodb.client.model.WriteModel;
 import org.bson.Document;
 
 import javax.print.Doc;
 import java.io.FileNotFoundException;
 import java.io.PrintWriter;
 import java.io.UnsupportedEncodingException;
+import java.net.MalformedURLException;
+import java.net.UnknownHostException;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -26,7 +26,7 @@ public class dbConnector {
     private static final int PRIORITY = 100;
     private static final int MAX_CRAWL = 500;
     private static final int ID = 1911;
-    private static final int MAX_RECRAWL = 200;
+    private static final int MAX_RECRAWL =200;
 
     MongoCollection<Document> documents, to_crawl;
 
@@ -40,7 +40,7 @@ public class dbConnector {
         return false;
     }
 
-    dbConnector() {
+    dbConnector() throws MalformedURLException, UnknownHostException {
         mongoClient = new MongoClient("localhost", 27017);
         database = mongoClient.getDatabase("APT");
         if (!collectionExists("documents")) {
@@ -52,7 +52,24 @@ public class dbConnector {
 
         documents = database.getCollection("documents");
         to_crawl = database.getCollection("to_crawl_coll");
+//        clean();
+//        insertDocument(NormalizeURL.normalize("https://www.linkedin.com/"));
+//        insertDocument(NormalizeURL.normalize("https://github.com/"));
+//        insertDocument(NormalizeURL.normalize("https://www.thesun.co.uk"));
+//        insertDocument(NormalizeURL.normalize("https://yts.am/"));
+//        insertDocument(NormalizeURL.normalize("https://edition.cnn.com/americas/"));
+//        insertDocument(NormalizeURL.normalize("https://www.topcoder.com/"));
+//        insertDocument(NormalizeURL.normalize("https://twitter.com/?lang=en"));
+//        insertDocument(NormalizeURL.normalize("https://www.quora.com/topic/Computer-Programming"));
+//        insertDocument(NormalizeURL.normalize("https://www.jetbrains.com/"));
+//        insertDocument(NormalizeURL.normalize("https://www.theguardian.com/football"));
+//        insertDocument(NormalizeURL.normalize("http://www.bbc.com/sport"));
+//        insertDocument(NormalizeURL.normalize("http://www.eonline.com/news"));
+//        insertDocument(NormalizeURL.normalize("https://www.nbcnews.com/politics/politics-news"));
+//        insertDocument(NormalizeURL.normalize("https://eg.udacity.com/"));
+//        insertDocument(NormalizeURL.normalize("https://www.lynda.com/"));
 
+        //insertDocument("https://www.wikipedia.org/");
 
         Document cur = to_crawl.find(new Document("id", ID)).first();
         if (cur == null) {
@@ -91,7 +108,10 @@ public class dbConnector {
         BasicDBObject updateQuery;
 
         Document cur = documents.find(new Document("url", url)).first();
-
+        if(cur==null){
+           insertDocument(url);
+           cur=documents.find(new Document("url", url)).first();
+        }
         ArrayList<String> texts_db = (ArrayList<String>) cur.get("url_data");
         ArrayList<Integer> tags_db = (ArrayList<Integer>) cur.get("tags");
         ArrayList<String> texts = url_data.getText();
@@ -152,6 +172,8 @@ public class dbConnector {
         updateQuery.put("$set", new BasicDBObject().append("to_crawl", MAX_CRAWL));
         BasicDBObject updateObject = new BasicDBObject("id", ID);
         to_crawl.updateOne(updateObject, updateQuery);
+        //edafa
+        Web_Crawling.setTo_crawl(MAX_CRAWL);
     }
 
     public FindIterable<Document> getAllDocuments() {
@@ -160,7 +182,6 @@ public class dbConnector {
 
     public void sort_and_update() {
         FindIterable<Document> docs = documents.find().sort(descending("priority")).limit(MAX_RECRAWL);
-        List<WriteModel<Document>> updates = new ArrayList<WriteModel<Document>>();
         for (Document doc : docs) {
             BasicDBObject updateQuery;
             String url = doc.getString("url");
@@ -168,14 +189,21 @@ public class dbConnector {
             updateQuery = new BasicDBObject();
             updateQuery.put("$set", new BasicDBObject().append("crawled", 0));
             BasicDBObject updateObject = new BasicDBObject("url", url);
-            updates.add(
-                    new UpdateOneModel<Document>(
-                            updateObject, // filter
-                            updateQuery  // update
-                    )
-            );
+            documents.updateOne(updateObject, updateQuery);
         }
-        if(!updates.isEmpty()) documents.bulkWrite(updates);
+    }
+
+    public void setAllOne() {
+        FindIterable<Document> docs = documents.find();
+        for (Document doc : docs) {
+            BasicDBObject updateQuery;
+            String url = doc.getString("url");
+            //Document cur = documents.find(new Document("url", url)).first();
+            updateQuery = new BasicDBObject();
+            updateQuery.put("$set", new BasicDBObject().append("crawled", 1));
+            BasicDBObject updateObject = new BasicDBObject("url", url);
+            documents.updateOne(updateObject, updateQuery);
+        }
     }
 
     public int printDocs() throws FileNotFoundException, UnsupportedEncodingException {
