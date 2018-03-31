@@ -10,12 +10,11 @@ import java.io.BufferedReader;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStreamReader;
-import java.net.ConnectException;
-import java.net.SocketTimeoutException;
-import java.net.URL;
-import java.net.UnknownHostException;
+import java.net.*;
 import java.util.*;
 import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.regex.Matcher;
@@ -46,20 +45,24 @@ public class Web_Crawling implements Runnable {
     private static Object object1 = new Object();
     private static Object object2 = new Object();
     private static Object object3 = new Object();
+    private static Object object4=new Object();
     //private static BlockingQueue<String> current_urls = new LinkedBlockingQueue<>();
-    private static BlockingQueue<String> final_urls = new LinkedBlockingQueue<>();
+    private static ConcurrentLinkedQueue<String> final_urls = new ConcurrentLinkedQueue<String>();
+   // private static BlockingQueue<String> final_urls = new LinkedBlockingQueue<>();
     private static String urlPattern = "^http(s{0,1})://[a-zA-Z0-9_/\\-\\.]+\\.([A-Za-z/]{2,5})[a-zA-Z0-9_/\\&\\?\\=\\-\\.\\~\\%]*";
-    private static Map<String, Boolean> robots_done = Collections.synchronizedMap(new HashMap<>());
+    //private static Map<String, Boolean> robots_done = Collections.synchronizedMap(new HashMap<>());
+    private static HashMap<String,Boolean>robots_done=new HashMap<>();
     public static final char[] special_chars = {'<', '(', '[', '{', '^', '-', '=', '!', '|', ']', '}', ')', '?', '+', '.', '>'};
     public static final String robots_or_not = "User-agent: (.*)|Disallow: (.*)|Allow: (.*)";
     private static AtomicInteger to_crawl = new AtomicInteger();
     // de ely shayla le kol url el 7agat bt3to
-    private static Map<String, Url_Data> visited = Collections.synchronizedMap(new HashMap<>());
+    //private static Map<String, Url_Data> visited = Collections.synchronizedMap(new HashMap<>());
+    private static ConcurrentHashMap<String,Url_Data>visited=new ConcurrentHashMap<>();
     private static dbConnector db;
-    private static List<String> current = Collections.synchronizedList(new ArrayList<String>());
-    //private static ArrayList<String> current=new ArrayList<>();
-    // private static ArrayList<String>next = new ArrayList<>();
-    private static List<String> next = Collections.synchronizedList(new ArrayList<String>());
+    //private static List<String> current = Collections.synchronizedList(new ArrayList<String>());
+    //private static List<String> next = Collections.synchronizedList(new ArrayList<String>());
+    private static ArrayList<String>current = new ArrayList<>();
+    private static ArrayList<String>next=new ArrayList<>();
     // da elly lw l2a 3dd el words a2l mno m4 ha update
     private static final int NW = 20;
     @Override
@@ -82,23 +85,14 @@ public class Web_Crawling implements Runnable {
                         next.clear();
                     }
                     url = current.remove(new Random().nextInt(current.size()));
-                    //if (final_urls.size() >= 20)break;
+
 
                 }
                 if (to_crawl.get() <= 0) break;
                 doc = Jsoup.connect(url)
-                        .timeout(7000)
+                        .timeout(1000)
                         .get();
 
-                //final_urls.put(url);
-                //System.out.println("to_crawlllllllllll: "+to_crawl.get());
-                //to_crawl.decrementAndGet();
-                //db.updateCrawlReminder(to_crawl);
-
-
-                /*
-                new tgrbaaa
-                 */
                 Elements elements = doc.body().select("*");
                 ArrayList<String> links = new ArrayList<>();
                 Url_Data url_data = new Url_Data();
@@ -110,7 +104,7 @@ public class Web_Crawling implements Runnable {
                         if (!checkTagExist(element.tagName())) continue;
                         String text = element.ownText();
                         if (text.isEmpty()) continue;
-                        String alphaOnly = text.replaceAll("^[\\u0600-\\u065F\\u066A-\\u06EF\\u06FA-\\u06FFa-zA-Z]+[\\u0600-\\u065F\\u066A-\\u06EF\\u06FA-\\u06FFa-zA-Z-_]*$", " ");
+                        String alphaOnly = text.replaceAll("[^a-zA-Z]+", " ");
                         alphaOnly = alphaOnly.trim();
                         numOfWords += alphaOnly.split(" ").length;
                         url_data.addText(alphaOnly);
@@ -118,18 +112,19 @@ public class Web_Crawling implements Runnable {
                     }
                 }
                 ArrayList<ArrayList<String>> allowed_and_disallowd = robots_parser(url);
+                     synchronized (object2) {
 
-                synchronized (object2) {
-                    if (to_crawl.get() <= 0) break;
+                         if (to_crawl.get() <= 0) break;
+                         if(numOfWords>=NW)to_crawl.decrementAndGet();
+                     }
                     visited.put(url, url_data);
                     if (numOfWords>= NW)
                     {
                         db.updateDocument(url, url_data);
-                        final_urls.put(url);
-                        to_crawl.decrementAndGet();
+                        final_urls.add(url);
+                        //to_crawl.decrementAndGet();
                         db.updateCrawlReminder(to_crawl);
                     }
-
                     for (String link : links) {
                         if (link.length() == 0) continue;
                         if (!link.matches(urlPattern)) continue;
@@ -156,17 +151,19 @@ public class Web_Crawling implements Runnable {
                                 }
                             }
                         }
+                        link=NormalizeURL.normalize(link);
+                        synchronized (object4) {
+                            if (!visited.containsKey(link)) {
+                                if (!dis || (allow && (allowed.length() >= disallowed.length()))) {
+                                    visited.put(link, new Url_Data());
+                                    next.add(link);
+                                    db.insertDocument(link);
+                                }
 
-                        if (!visited.containsKey(link)) {
-                            if (!dis || (allow && (allowed.length() >= disallowed.length()))) {
-                                visited.put(link, new Url_Data());
-                                next.add(link);
-                                db.insertDocument(link);
                             }
-
                         }
                     }
-                }
+
 
 
             } catch (UnknownHostException e) {
@@ -175,9 +172,7 @@ public class Web_Crawling implements Runnable {
             } catch (SocketTimeoutException e) {
                 System.err.println("IP cannot be reached");
 
-            } catch (InterruptedException e) {
-                e.printStackTrace();
-            } catch (IOException e) {
+            }  catch (IOException e) {
                 e.printStackTrace();
             }
 
@@ -271,19 +266,20 @@ public class Web_Crawling implements Runnable {
 
     }
 
-    public static void setCurrent_urls(ArrayList<String> urls) throws InterruptedException {
+    public static void setCurrent_urls(ArrayList<String> urls) throws InterruptedException, MalformedURLException, UnknownHostException {
         for (String url : urls) {
+            url=NormalizeURL.normalize(url);
             // current_urls.put(url);
             current.add(url);
             db.insertDocument(url);
         }
     }
 
-    public static void setVisited(Map<String, Url_Data> visitedd) {
+    public static void setVisited(ConcurrentHashMap<String,Url_Data> visitedd) {
         visited = visitedd;
     }
 
-    public static BlockingQueue<String> getFinal_urls() {
+    public static ConcurrentLinkedQueue<String> getFinal_urls() {
         return final_urls;
     }
 
@@ -299,6 +295,9 @@ public class Web_Crawling implements Runnable {
         return to_crawl;
     }
 
+    /**
+     * function to initialize tagPriorities map with every tag with it's priority
+     */
     public static void setTagPriorities() {
         tagPriorities.put(HEADER1, H1_PRIORITY);
         tagPriorities.put(HEADER2, H2_PRIORITY);
@@ -309,6 +308,11 @@ public class Web_Crawling implements Runnable {
         tagPriorities.put(PARAGRAPH, P_PRIORITY);
     }
 
+    /**
+     * to check if the given tag is from the tags wanted by the indexer or not
+     *
+     * @return boolean
+     */
     public static boolean checkTagExist(String s) {
         return s.equals(HEADER1) || s.equals(HEADER2) || s.equals(HEADER3) || s.equals(HEADER4) || s.equals(HEADER5) || s.equals(HEADER6) || s.equals(PARAGRAPH);
     }

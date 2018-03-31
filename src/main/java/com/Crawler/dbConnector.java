@@ -7,6 +7,8 @@ import com.mongodb.client.MongoCollection;
 import com.mongodb.client.MongoDatabase;
 import com.mongodb.client.MongoIterable;
 
+import com.mongodb.client.model.UpdateOneModel;
+import com.mongodb.client.model.WriteModel;
 import org.bson.Document;
 
 import javax.print.Doc;
@@ -22,9 +24,9 @@ public class dbConnector {
     private MongoClient mongoClient;
     private MongoDatabase database;
     private static final int PRIORITY = 100;
-    private static final int MAX_CRAWL = 5000;
+    private static final int MAX_CRAWL = 500;
     private static final int ID = 1911;
-    private static final int MAX_RECRAWL = 1000;
+    private static final int MAX_RECRAWL = 200;
 
     MongoCollection<Document> documents, to_crawl;
 
@@ -50,9 +52,7 @@ public class dbConnector {
 
         documents = database.getCollection("documents");
         to_crawl = database.getCollection("to_crawl_coll");
-        //clean();
-        //insertDocument("https://www.google.com.eg");
-        //insertDocument("https://www.wikipedia.org/");
+
 
         Document cur = to_crawl.find(new Document("id", ID)).first();
         if (cur == null) {
@@ -140,7 +140,7 @@ public class dbConnector {
         updateQuery.put("$set", new BasicDBObject().append("to_crawl", to_crawll));
         BasicDBObject updateObject = new BasicDBObject("id", ID);
         to_crawl.updateOne(updateObject, updateQuery);
-        System.out.println(to_crawll);
+        System.out.println("to_crawl: "+to_crawll);
 
     }
 
@@ -160,6 +160,7 @@ public class dbConnector {
 
     public void sort_and_update() {
         FindIterable<Document> docs = documents.find().sort(descending("priority")).limit(MAX_RECRAWL);
+        List<WriteModel<Document>> updates = new ArrayList<WriteModel<Document>>();
         for (Document doc : docs) {
             BasicDBObject updateQuery;
             String url = doc.getString("url");
@@ -167,21 +168,14 @@ public class dbConnector {
             updateQuery = new BasicDBObject();
             updateQuery.put("$set", new BasicDBObject().append("crawled", 0));
             BasicDBObject updateObject = new BasicDBObject("url", url);
-            documents.updateOne(updateObject, updateQuery);
+            updates.add(
+                    new UpdateOneModel<Document>(
+                            updateObject, // filter
+                            updateQuery  // update
+                    )
+            );
         }
-    }
-
-    public void setAllOne() {
-        FindIterable<Document> docs = documents.find();
-        for (Document doc : docs) {
-            BasicDBObject updateQuery;
-            String url = doc.getString("url");
-            //Document cur = documents.find(new Document("url", url)).first();
-            updateQuery = new BasicDBObject();
-            updateQuery.put("$set", new BasicDBObject().append("crawled", 1));
-            BasicDBObject updateObject = new BasicDBObject("url", url);
-            documents.updateOne(updateObject, updateQuery);
-        }
+        if(!updates.isEmpty()) documents.bulkWrite(updates);
     }
 
     public int printDocs() throws FileNotFoundException, UnsupportedEncodingException {
@@ -191,8 +185,8 @@ public class dbConnector {
         // Getting the iterator
         Iterator it = iterDoc.iterator();
         int cnt=0;
-        for (Document doc : iterDoc) {
-            if(doc.getInteger("to_index") == 0)
+        while (it.hasNext()) {
+            writer.println(it.next());
             ++cnt;
         }
         writer.close();

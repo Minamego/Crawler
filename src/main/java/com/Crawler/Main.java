@@ -14,14 +14,14 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 public class Main {
-    private static final int Thread_count = 100;
+    private static final int Thread_count = 10;
 
     public static void main(String[] args) throws IOException {
         dbConnector db = new dbConnector();
         Web_Crawling.setTagPriorities();
         Web_Crawling.setDBObject(db);
         while (true) {
-            /*System.out.println("to_crawl "+Web_Crawling.getTo_crawl().get());
+            System.out.println("to_crawl "+Web_Crawling.getTo_crawl().get());
             long startTime = System.currentTimeMillis();
             ArrayList<String> urls = new ArrayList<>();
 
@@ -34,7 +34,7 @@ public class Main {
             //Iterator it = iterDocs.iterator();
             //split the documents
             ArrayList<String> to_crawl_urls = new ArrayList<>();
-            Map<String, Url_Data> visited = Collections.synchronizedMap(new HashMap<>());
+           ConcurrentHashMap<String,Url_Data>visited=new ConcurrentHashMap<>();
 
             for (Document iterDoc : iterDocs) {
                 String url = iterDoc.getString("url");
@@ -70,18 +70,19 @@ public class Main {
                     }
                 }
             }
-            db.printDocs();
+          ConcurrentLinkedQueue<String>arr=Web_Crawling.getFinal_urls();
+            System.out.println("final size: "+arr.size());
+            Set<String>seet=new HashSet<>();
+            for(String arrr: arr){
+                seet.add(arrr);
+            }
+
+            System.out.println("unique: "+seet.size());
             db.removeOverhead();
-
-
             //reset the ones with high priority
             db.sort_and_update();
             db.setRecrawl();
-*/
-            System.out.println(db.printDocs());
             System.out.println(db.getCrawlReminder());
-
-            break;
 
         }
 
