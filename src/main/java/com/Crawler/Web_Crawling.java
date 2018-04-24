@@ -119,7 +119,7 @@ public class Web_Crawling implements Runnable {
                 visited.put(url, url_data);
                 if (numOfWords>= NW)
                 {
-                    db.updateDocument(url, url_data);
+                    db.updateDocument(url, url_data , numOfWords);
                     final_urls.add(url);
                     //to_crawl.decrementAndGet();
                     db.updateCrawlReminder(to_crawl);
@@ -270,7 +270,6 @@ public class Web_Crawling implements Runnable {
             url=NormalizeURL.normalize(url);
             // current_urls.put(url);
             current.add(url);
-            db.insertDocument(url);
         }
     }
 

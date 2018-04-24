@@ -24,9 +24,9 @@ public class dbConnector {
     private MongoClient mongoClient;
     private MongoDatabase database;
     private static final int PRIORITY = 100;
-    private static final int MAX_CRAWL = 500;
+    private static final int MAX_CRAWL = 20;
     private static final int ID = 1911;
-    private static final int MAX_RECRAWL =200;
+    private static final int MAX_RECRAWL =10;
 
     MongoCollection<Document> documents, to_crawl;
 
@@ -97,14 +97,15 @@ public class dbConnector {
             page = new Document("url", url);
             page.append("crawled", 0)
                     .append("to_index", 0)
-                    .append("priority", PRIORITY);
+                    .append("priority", PRIORITY)
+                    .append("numOfWords" , 0);
             documents.insertOne(page);
         }
 
 
     }
 
-    public void updateDocument(String url, Url_Data url_data) {
+    public void updateDocument(String url, Url_Data url_data , int numOfWords) {
         BasicDBObject updateQuery;
 
         Document cur = documents.find(new Document("url", url)).first();
@@ -140,7 +141,8 @@ public class dbConnector {
                 .append("tags", tags)
                 .append("crawled", 1)
                 .append("to_index", 1)
-                .append("priority", cur.getInteger("priority") + 1));
+                .append("priority", cur.getInteger("priority") + 1)
+                .append("numOfWords" , numOfWords));
 
         // apply the update to the database
         BasicDBObject updateObject = new BasicDBObject("url", url);
