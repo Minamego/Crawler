@@ -7,26 +7,17 @@ import java.util.*;
 import java.util.concurrent.*;
 
 public class Main {
-    private static final int Thread_count = 4;
+    private static final int Thread_count = 8;
     static  dbConnector db = new dbConnector();
     public static void main(String[] args) throws IOException {
         Web_Crawling.setTagPriorities();
         Web_Crawling.setDBObject(db);
         int kam_crawl=0;
         while (true) {
-            System.out.println("ana fel crawlaayaa: "+(++kam_crawl));
             System.out.println("to_crawl "+Web_Crawling.getTo_crawl().get());
-            long startTime = System.currentTimeMillis();
-            ArrayList<String> urls = new ArrayList<>();
-
-            //db.clean();
-            // db.insertDocument("https://www.google.com.eg");
-            // break;
 
             FindIterable<Document> iterDocs = db.getAllDocuments();
-            // Getting the iterator
-            //Iterator it = iterDocs.iterator();
-            //split the documents
+
             ArrayList<String> to_crawl_urls = new ArrayList<>();
             Map<String, Url_Data> visited = Collections.synchronizedMap(new HashMap<>());
             for (Document iterDoc : iterDocs) {
@@ -94,12 +85,13 @@ public class Main {
     }
     private static  void pageRank(){
         // pri(x) = lamda * 1/database(linkat) +(1-lamda) * sigma (3la in el x) pr(i-1)(y)/out(y)
-        double lamda = 0.3;
+        double lamda = 0.7;
         int iterations=10;
         FindIterable<Document> allDocuments = db.getAllDocuments();
         Iterator it = allDocuments.iterator();
         int cnt=0;
         while (it.hasNext()) {
+            it.next();
             ++cnt;
         }
         double previousPageRanks []= new double[cnt];
@@ -124,6 +116,7 @@ public class Main {
                 for(int k = 0 ; k<In.get(j).size() ; k++)
                 {
                     String cur = In.get(j).get(k);
+                    if(cur.isEmpty()) continue;
                     int idx = urlIdx.get(cur);
                     currentPageRanks[j] += previousPageRanks[idx]/out.get(idx);
                 }

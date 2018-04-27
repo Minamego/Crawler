@@ -227,7 +227,7 @@ public class dbConnector {
         BasicDBObject updateQuery;
         Document cur = documents.find(new Document("url", url)).first();
         String from_db = (String) cur.get("from");
-        if(from_db=="")return;
+        if(from_db.isEmpty())return;
 
 
 

@@ -83,8 +83,6 @@ public class Web_Crawling implements Runnable {
     public void run() {
         System.out.println(Thread.currentThread().getName() + " Started");
         while (true) {
-
-
             String url;
             String from;
             Document doc;
@@ -109,7 +107,9 @@ public class Web_Crawling implements Runnable {
                         .timeout(1000)
                         .get();
 
-                String title = doc.title();
+                String title = doc.title().replaceAll("[^a-zA-Z]+", " ").trim();
+                if(title.length() < 5) continue;
+
                 connectTrials.set(0);
 
                 Elements elements = doc.body().select("*");
@@ -137,6 +137,7 @@ public class Web_Crawling implements Runnable {
                     if(numOfWords>=NW)to_crawl.decrementAndGet();
                 }
                 visited.put(url, url_data);
+                boolean crawledSuccess = false;
                 if (numOfWords>= NW)
                 {
                     db.updateDocument(url, url_data,from,numOfWords , title);
@@ -144,6 +145,7 @@ public class Web_Crawling implements Runnable {
                     //to_crawl.decrementAndGet();
                     db.updateCrawlReminder(to_crawl);
                     db.tzbet_in_out(url,from);
+                    crawledSuccess = true;
                 }
                 for (String link : links) {
                     if (link.length() == 0) continue;
@@ -176,8 +178,16 @@ public class Web_Crawling implements Runnable {
                         if (!visited.containsKey(link)) {
                             if (!dis || (allow && (allowed.length() >= disallowed.length()))) {
                                 visited.put(link, new Url_Data());
-                                next.add(new Pair(link,url));
-                                db.insertDocument(link,url);
+                                if(!crawledSuccess)
+                                {
+                                    next.add(new Pair(link,""));
+                                    db.insertDocument(link,"");
+                                }
+                                else
+                                {
+                                    next.add(new Pair(link,url));
+                                    db.insertDocument(link,url);
+                                }
                             }
 
                         }
