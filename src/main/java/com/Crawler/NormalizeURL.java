@@ -19,19 +19,6 @@ public class NormalizeURL {
 
         StringBuilder ans = new StringBuilder();
         url = new URL(str);
-
-       // System.out.println("Query : " + url.getQuery());
-       // System.out.println("Authority : " + url.getAuthority());
-       // System.out.println("Port : " + url.getPort());
-        //System.out.println("Host : " + url.getHost());
-        //System.out.println("protocol : " + url.getProtocol());
-       // System.out.println("DefaultPort : " + url.getDefaultPort());
-        //System.out.println("getPath : " + url.getPath());
-        //System.out.println("UserInfo : " + url.getUserInfo());
-        //System.out.println("file : " + url.getFile());
-
-        /*Converting the scheme and host to lower case*/
-
         ans.append(url.getProtocol().toLowerCase());
         ans.append("://");
         String authority = url.getAuthority();

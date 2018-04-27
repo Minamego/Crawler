@@ -1,20 +1,21 @@
 package com.Crawler;
 
 import com.mongodb.BasicDBObject;
+import com.mongodb.DBObject;
 import com.mongodb.MongoClient;
 import com.mongodb.client.FindIterable;
 import com.mongodb.client.MongoCollection;
 import com.mongodb.client.MongoDatabase;
 import com.mongodb.client.MongoIterable;
 
+import com.mongodb.client.model.UpdateOneModel;
+import com.mongodb.client.model.WriteModel;
 import org.bson.Document;
 
 import javax.print.Doc;
 import java.io.FileNotFoundException;
 import java.io.PrintWriter;
 import java.io.UnsupportedEncodingException;
-import java.net.MalformedURLException;
-import java.net.UnknownHostException;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -24,9 +25,9 @@ public class dbConnector {
     private MongoClient mongoClient;
     private MongoDatabase database;
     private static final int PRIORITY = 100;
-    private static final int MAX_CRAWL = 20;
+    private static final int MAX_CRAWL = 5;
     private static final int ID = 1911;
-    private static final int MAX_RECRAWL =10;
+    private static final int MAX_RECRAWL =2 ;
 
     MongoCollection<Document> documents, to_crawl;
 
@@ -40,7 +41,7 @@ public class dbConnector {
         return false;
     }
 
-    dbConnector() throws MalformedURLException, UnknownHostException {
+    dbConnector() {
         mongoClient = new MongoClient("localhost", 27017);
         database = mongoClient.getDatabase("APT");
         if (!collectionExists("documents")) {
@@ -52,23 +53,8 @@ public class dbConnector {
 
         documents = database.getCollection("documents");
         to_crawl = database.getCollection("to_crawl_coll");
-//        clean();
-//        insertDocument(NormalizeURL.normalize("https://www.linkedin.com/"));
-//        insertDocument(NormalizeURL.normalize("https://github.com/"));
-//        insertDocument(NormalizeURL.normalize("https://www.thesun.co.uk"));
-//        insertDocument(NormalizeURL.normalize("https://yts.am/"));
-//        insertDocument(NormalizeURL.normalize("https://edition.cnn.com/americas/"));
-//        insertDocument(NormalizeURL.normalize("https://www.topcoder.com/"));
-//        insertDocument(NormalizeURL.normalize("https://twitter.com/?lang=en"));
-//        insertDocument(NormalizeURL.normalize("https://www.quora.com/topic/Computer-Programming"));
-//        insertDocument(NormalizeURL.normalize("https://www.jetbrains.com/"));
-//        insertDocument(NormalizeURL.normalize("https://www.theguardian.com/football"));
-//        insertDocument(NormalizeURL.normalize("http://www.bbc.com/sport"));
-//        insertDocument(NormalizeURL.normalize("http://www.eonline.com/news"));
-//        insertDocument(NormalizeURL.normalize("https://www.nbcnews.com/politics/politics-news"));
-//        insertDocument(NormalizeURL.normalize("https://eg.udacity.com/"));
-//        insertDocument(NormalizeURL.normalize("https://www.lynda.com/"));
-
+        clean();
+        insertDocument("https://www.google.com.eg","");
         //insertDocument("https://www.wikipedia.org/");
 
         Document cur = to_crawl.find(new Document("id", ID)).first();
@@ -89,36 +75,43 @@ public class dbConnector {
         to_crawl.deleteMany(new Document());
     }
 
-    public void insertDocument(String url) {
+    public void insertDocument(String url,String from) {
         Document page = new Document();
 
         Document cur = documents.find(new Document("url", url)).first();
+        ArrayList<String> arr = new ArrayList<>();
         if (cur == null) {
             page = new Document("url", url);
             page.append("crawled", 0)
                     .append("to_index", 0)
                     .append("priority", PRIORITY)
-                    .append("numOfWords" , 0);
+                    .append("from",from)
+                    .append("in",arr)
+                    .append("out",arr)
+                    .append("numOfWords",0)
+                    .append("page_rank" , 0.0)
+                    .append("title" , "");
             documents.insertOne(page);
         }
 
 
     }
 
-    public void updateDocument(String url, Url_Data url_data , int numOfWords) {
+    public void updateDocument(String url, Url_Data url_data,String from,int numOfWords , String title) {
         BasicDBObject updateQuery;
 
         Document cur = documents.find(new Document("url", url)).first();
         if(cur==null){
-           insertDocument(url);
-           cur=documents.find(new Document("url", url)).first();
+            insertDocument(url,from);
+            cur=documents.find(new Document("url", url)).first();
         }
+
         ArrayList<String> texts_db = (ArrayList<String>) cur.get("url_data");
         ArrayList<Integer> tags_db = (ArrayList<Integer>) cur.get("tags");
         ArrayList<String> texts = url_data.getText();
         ArrayList<Integer> tags = url_data.getTags();
         if (texts_db != null) {
-            if (texts.size() == texts.size()) {
+            if (texts.size() == texts_db.size()) {
                 boolean same = true;
                 for (int i = 0; i < texts.size(); ++i) {
                     if (!(texts.get(i).equals(texts_db.get(i))) || tags.get(i)!=tags_db.get(i)) {
@@ -141,8 +134,9 @@ public class dbConnector {
                 .append("tags", tags)
                 .append("crawled", 1)
                 .append("to_index", 1)
+                .append("numOfWords",numOfWords)
                 .append("priority", cur.getInteger("priority") + 1)
-                .append("numOfWords" , numOfWords));
+                .append("title" , title));
 
         // apply the update to the database
         BasicDBObject updateObject = new BasicDBObject("url", url);
@@ -228,6 +222,43 @@ public class dbConnector {
         query.append("crawled" , 0);
         documents.deleteMany(query);
     }
+
+    public void tzbet_in_out(String url,String from){
+        BasicDBObject updateQuery;
+        Document cur = documents.find(new Document("url", url)).first();
+        String from_db = (String) cur.get("from");
+        if(from_db=="")return;
+
+
+
+        DBObject listItem = new BasicDBObject("out", url);
+        updateQuery = new BasicDBObject("$addToSet", listItem);
+        BasicDBObject updateObject = new BasicDBObject("url", from);
+        documents.updateOne(updateObject, updateQuery);
+
+
+        listItem = new BasicDBObject("in", from);
+        updateQuery = new BasicDBObject("$addToSet", listItem);
+        updateObject = new BasicDBObject("url", url);
+        documents.updateOne(updateObject, updateQuery);
+    }
+    public void updatePageRank(double [] PR , ArrayList<String> keys)
+    {
+        List<WriteModel<Document>> updates = new ArrayList<>();
+        for(int i = 0 ; i<PR.length ; i++)
+        {
+            BasicDBObject updateObject = new BasicDBObject("url", keys.get(i));
+            BasicDBObject updateQuery = new BasicDBObject("$set", new Document("page_rank" , PR[i]));
+            updates.add(
+                    new UpdateOneModel<>(
+                            updateObject,
+                            updateQuery
+                    )
+            );
+        }
+        if(!updates.isEmpty()) documents.bulkWrite(updates);
+    }
+
 
     public void close() {
         mongoClient.close();

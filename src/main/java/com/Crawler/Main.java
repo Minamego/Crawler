@@ -2,22 +2,14 @@ package com.Crawler;
 
 import com.mongodb.client.FindIterable;
 import org.bson.Document;
-
-import javax.print.Doc;
-import java.io.BufferedReader;
-import java.io.FileNotFoundException;
-import java.io.FileReader;
 import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.*;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 public class Main {
-    private static final int Thread_count = 10;
-
+    private static final int Thread_count = 4;
+    static  dbConnector db = new dbConnector();
     public static void main(String[] args) throws IOException {
-        dbConnector db = new dbConnector();
         Web_Crawling.setTagPriorities();
         Web_Crawling.setDBObject(db);
         int kam_crawl=0;
@@ -71,7 +63,7 @@ public class Main {
                     }
                 }
             }
-          BlockingQueue<String> arr=Web_Crawling.getFinal_urls();
+            BlockingQueue<String> arr=Web_Crawling.getFinal_urls();
             System.out.println("final size: "+arr.size());
             Set<String>seet=new HashSet<>();
             for(String arrr: arr){
@@ -90,11 +82,56 @@ public class Main {
 
             System.out.println(db.printDocs());
             System.out.println(db.getCrawlReminder());
+            pageRank();
 
+            // pri(x) = lamda * 1/database(linkat) +(1-lamda) * sigma (3la in el x) pr(i-1)(y)/out(y)
 
+            break;
         }
 
 
 
+    }
+    private static  void pageRank(){
+        // pri(x) = lamda * 1/database(linkat) +(1-lamda) * sigma (3la in el x) pr(i-1)(y)/out(y)
+        double lamda = 0.3;
+        int iterations=10;
+        FindIterable<Document> allDocuments = db.getAllDocuments();
+        Iterator it = allDocuments.iterator();
+        int cnt=0;
+        while (it.hasNext()) {
+            ++cnt;
+        }
+        double previousPageRanks []= new double[cnt];
+        double currentPageRanks[] = new double[cnt];
+        ArrayList<ArrayList<String> > In = new ArrayList< >();
+        ArrayList<Integer> out = new ArrayList< >();
+        ArrayList<String> revIdx = new ArrayList< >();
+        HashMap<String,Integer> urlIdx = new HashMap<>();
+        int i = 0;
+        for(Document doc : allDocuments){
+            previousPageRanks[i]=1.0/cnt;
+            currentPageRanks [i]=previousPageRanks[i];
+            In.add((ArrayList<String>)doc.get("in"));
+            out.add(((ArrayList<String>)doc.get("out")).size());
+            urlIdx.put(doc.getString("url") , i++);
+            revIdx.add(doc.getString("url"));
+        }
+        for(int a=0;a<iterations;++a){
+
+            for(int j = 0 ; j<cnt ; j++){
+                currentPageRanks[j]=lamda*(1.0/cnt);
+                for(int k = 0 ; k<In.get(j).size() ; k++)
+                {
+                    String cur = In.get(j).get(k);
+                    int idx = urlIdx.get(cur);
+                    currentPageRanks[j] += previousPageRanks[idx]/out.get(idx);
+                }
+            }
+            for(int j = 0 ; j<cnt ; j++){
+                previousPageRanks[j] = currentPageRanks[j];
+            }
+        }
+        db.updatePageRank(currentPageRanks , revIdx);
     }
 }

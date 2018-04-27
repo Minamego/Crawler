@@ -17,6 +17,22 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 public class Web_Crawling implements Runnable {
+    static class Pair{
+        private  String key,value;
+        Pair(String k , String v)
+        {
+            key = k;
+            value = v;
+        }
+        String getKey()
+        {
+            return  key;
+        }
+        String getValue()
+        {
+            return  value;
+        }
+    }
     private static final int HTML_TAGS_NUMBER = 7;
     // priorities of html tags
     private static final int H1_PRIORITY = 7;
@@ -44,7 +60,7 @@ public class Web_Crawling implements Runnable {
     private static Object object4=new Object();
     //private static BlockingQueue<String> current_urls = new LinkedBlockingQueue<>();
     //private static ConcurrentLinkedQueue<String> final_urls = new ConcurrentLinkedQueue<String>();
-     private static BlockingQueue<String> final_urls = new LinkedBlockingQueue<>();
+    private static BlockingQueue<String> final_urls = new LinkedBlockingQueue<>();
     private static String urlPattern = "^http(s{0,1})://[a-zA-Z0-9_/\\-\\.]+\\.([A-Za-z/]{2,5})[a-zA-Z0-9_/\\&\\?\\=\\-\\.\\~\\%]*";
     //private static Map<String, Boolean> robots_done = Collections.synchronizedMap(new HashMap<>());
     private static HashMap<String,Boolean>robots_done=new HashMap<>();
@@ -57,10 +73,12 @@ public class Web_Crawling implements Runnable {
     private static dbConnector db;
     //private static List<String> current = Collections.synchronizedList(new ArrayList<String>());
     //private static List<String> next = Collections.synchronizedList(new ArrayList<String>());
-    private static ArrayList<String>current = new ArrayList<>();
-    private static ArrayList<String>next=new ArrayList<>();
+    private static ArrayList<Pair>current = new ArrayList<>();
+    private static ArrayList<Pair>next=new ArrayList<>();
     // da elly lw l2a 3dd el words a2l mno m4 ha update
     private static final int NW = 20;
+    private static final AtomicInteger CONNECTMAXTRIALS= new AtomicInteger(50);
+    private static  AtomicInteger connectTrials= new AtomicInteger(0);
     @Override
     public void run() {
         System.out.println(Thread.currentThread().getName() + " Started");
@@ -68,6 +86,7 @@ public class Web_Crawling implements Runnable {
 
 
             String url;
+            String from;
             Document doc;
             try {
                 synchronized (object1) {
@@ -80,17 +99,18 @@ public class Web_Crawling implements Runnable {
 
                         next.clear();
                     }
-                    url = current.remove(new Random().nextInt(current.size()));
-
+                    Pair p = current.remove(new Random().nextInt(current.size()));
+                    url=p.getKey();
+                    from=p.getValue();
 
                 }
                 if (to_crawl.get() <= 0) break;
                 doc = Jsoup.connect(url)
-                        .timeout(7000)
+                        .timeout(1000)
                         .get();
 
-
-
+                String title = doc.title();
+                connectTrials.set(0);
 
                 Elements elements = doc.body().select("*");
                 ArrayList<String> links = new ArrayList<>();
@@ -119,10 +139,11 @@ public class Web_Crawling implements Runnable {
                 visited.put(url, url_data);
                 if (numOfWords>= NW)
                 {
-                    db.updateDocument(url, url_data , numOfWords);
+                    db.updateDocument(url, url_data,from,numOfWords , title);
                     final_urls.add(url);
                     //to_crawl.decrementAndGet();
                     db.updateCrawlReminder(to_crawl);
+                    db.tzbet_in_out(url,from);
                 }
                 for (String link : links) {
                     if (link.length() == 0) continue;
@@ -155,24 +176,31 @@ public class Web_Crawling implements Runnable {
                         if (!visited.containsKey(link)) {
                             if (!dis || (allow && (allowed.length() >= disallowed.length()))) {
                                 visited.put(link, new Url_Data());
-                                next.add(link);
-                                db.insertDocument(link);
+                                next.add(new Pair(link,url));
+                                db.insertDocument(link,url);
                             }
 
                         }
                     }
                 }
 
-
-
             } catch (UnknownHostException e) {
-                System.err.println("Unknown host");
+                //System.err.println("Unknown host");
 
             } catch (SocketTimeoutException e) {
-                System.err.println("IP cannot be reached");
+                connectTrials.set(connectTrials.get()+1);
+                if(connectTrials.get()==CONNECTMAXTRIALS.get()){
+                    try {
+
+                        Thread.sleep(60000);
+                    } catch (InterruptedException e1) {
+                        //e1.printStackTrace();
+                    }
+                }
+                //System.err.println("IP cannot be reached");
 
             }  catch (IOException e) {
-                e.printStackTrace();
+                //e.printStackTrace();
             }
 
 
@@ -256,8 +284,8 @@ public class Web_Crawling implements Runnable {
 
                 }
             } catch (IOException e) {
-                System.err.println("there's no robots.txt in this website");
-                e.printStackTrace();
+                //System.err.println("there's no robots.txt in this website");
+                //e.printStackTrace();
             }
 
         }
@@ -269,7 +297,8 @@ public class Web_Crawling implements Runnable {
         for (String url : urls) {
             url=NormalizeURL.normalize(url);
             // current_urls.put(url);
-            current.add(url);
+            current.add(new Pair(url,""));
+            db.insertDocument(url,"");
         }
     }
 
