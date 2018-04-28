@@ -7,7 +7,7 @@ import java.util.*;
 import java.util.concurrent.*;
 
 public class Main {
-    private static final int Thread_count = 8;
+    private static final int Thread_count = 10;
     static  dbConnector db = new dbConnector();
     public static void main(String[] args) throws IOException {
         Web_Crawling.setTagPriorities();

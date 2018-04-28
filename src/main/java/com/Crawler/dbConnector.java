@@ -25,11 +25,11 @@ public class dbConnector {
     private MongoClient mongoClient;
     private MongoDatabase database;
     private static final int PRIORITY = 100;
-    private static final int MAX_CRAWL = 5;
+    private static final int MAX_CRAWL = 50;
     private static final int ID = 1911;
-    private static final int MAX_RECRAWL =2 ;
+    private static final int MAX_RECRAWL =50;
 
-    MongoCollection<Document> documents, to_crawl;
+    MongoCollection<Document> documents, to_crawl,users;
 
     private boolean collectionExists(final String collectionName) {
         MongoIterable<String> collectionNames = database.listCollectionNames();
@@ -50,9 +50,13 @@ public class dbConnector {
         if (!collectionExists("to_crawl_coll")) {
             database.createCollection("to_crawl_coll");
         }
-
+        if (!collectionExists("users")) {
+            database.createCollection("users");
+        }
         documents = database.getCollection("documents");
+        users = database.getCollection("users");
         to_crawl = database.getCollection("to_crawl_coll");
+
         clean();
         insertDocument("https://www.google.com.eg","");
         //insertDocument("https://www.wikipedia.org/");
@@ -90,7 +94,8 @@ public class dbConnector {
                     .append("out",arr)
                     .append("numOfWords",0)
                     .append("page_rank" , 0.0)
-                    .append("title" , "");
+                    .append("title" , "")
+                    .append("interested" , arr);
             documents.insertOne(page);
         }
 
@@ -107,6 +112,7 @@ public class dbConnector {
         }
 
         ArrayList<String> texts_db = (ArrayList<String>) cur.get("url_data");
+        ArrayList<String> interested = (ArrayList<String>) cur.get("interested");
         ArrayList<Integer> tags_db = (ArrayList<Integer>) cur.get("tags");
         ArrayList<String> texts = url_data.getText();
         ArrayList<Integer> tags = url_data.getTags();
@@ -137,7 +143,17 @@ public class dbConnector {
                 .append("numOfWords",numOfWords)
                 .append("priority", cur.getInteger("priority") + 1)
                 .append("title" , title));
-
+        for(int i = 0 ; i<interested.size() ; i++)
+        {
+            String user = interested.get(i);
+            DBObject listItem = new BasicDBObject("notifications_urls", url);
+            BasicDBObject updateQueryy = new BasicDBObject("$addToSet", listItem);
+            BasicDBObject updateObject = new BasicDBObject("username", user);
+            users.updateOne(updateObject, updateQueryy);
+            listItem = new BasicDBObject("notifications_titles", title);
+            updateQueryy = new BasicDBObject("$addToSet", listItem);
+            users.updateOne(updateObject, updateQueryy);
+        }
         // apply the update to the database
         BasicDBObject updateObject = new BasicDBObject("url", url);
         documents.updateOne(updateObject, updateQuery);
