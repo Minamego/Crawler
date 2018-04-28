@@ -57,8 +57,8 @@ public class dbConnector {
         users = database.getCollection("users");
         to_crawl = database.getCollection("to_crawl_coll");
 
-        clean();
-        insertDocument("https://www.google.com.eg","");
+        //clean();
+        //insertDocument("https://www.google.com.eg","");
         //insertDocument("https://www.wikipedia.org/");
 
         Document cur = to_crawl.find(new Document("id", ID)).first();

@@ -76,7 +76,6 @@ public class Main {
             pageRank();
 
             // pri(x) = lamda * 1/database(linkat) +(1-lamda) * sigma (3la in el x) pr(i-1)(y)/out(y)
-
             
         }
 
